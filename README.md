@@ -446,14 +446,18 @@ removeAllListeners() => Promise<void>
 
 #### Location
 
-| Prop            | Type                                                  | Description                                                     |
-| --------------- | ----------------------------------------------------- | --------------------------------------------------------------- |
-| **`uuid`**      | <code>string</code>                                   |                                                                 |
-| **`timestamp`** | <code>string</code>                                   | ISO-8601 timestamp of the fix.                                  |
-| **`coords`**    | <code><a href="#coords">Coords</a></code>             |                                                                 |
-| **`battery`**   | <code>{ level: number; is_charging: boolean; }</code> |                                                                 |
-| **`sample`**    | <code>boolean</code>                                  | True for locations produced by getCurrentPosition().            |
-| **`heartbeat`** | <code>boolean</code>                                  | True for points recorded by the heartbeat or by a push wake-up. |
+| Prop            | Type                                                             | Description                                                     |
+| --------------- | ---------------------------------------------------------------- | --------------------------------------------------------------- |
+| **`uuid`**      | <code>string</code>                                              |                                                                 |
+| **`timestamp`** | <code>string</code>                                              | ISO-8601 timestamp of the fix.                                  |
+| **`coords`**    | <code><a href="#coords">Coords</a></code>                        |                                                                 |
+| **`battery`**   | <code>{ is_charging: boolean; level: number; }</code>            |                                                                 |
+| **`is_moving`** | <code>boolean</code>                                             | Compatible with Transistorsoft / DeliveryApp SendGPS.           |
+| **`odometer`**  | <code>number</code>                                              |                                                                 |
+| **`activity`**  | <code>{ type: string; confidence: number; }</code>               |                                                                 |
+| **`extras`**    | <code><a href="#record">Record</a>&lt;string, unknown&gt;</code> |                                                                 |
+| **`sample`**    | <code>boolean</code>                                             | True for locations produced by getCurrentPosition().            |
+| **`heartbeat`** | <code>boolean</code>                                             | True for points recorded by the heartbeat or by a push wake-up. |
 
 
 #### Coords
