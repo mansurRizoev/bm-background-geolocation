@@ -244,6 +244,8 @@ import UIKit
     private func json(for l: CLLocation, sample: Bool) -> [String: Any] {
         let level = UIDevice.current.batteryLevel
         let state = UIDevice.current.batteryState
+        let speed = l.speed >= 0 ? l.speed : -1.0
+        let moving = speed >= 0.5
         var o: [String: Any] = [
             "uuid": UUID().uuidString,
             "timestamp": bm_geolocation.isoFormatter.string(from: l.timestamp),
@@ -252,10 +254,15 @@ import UIKit
                 "longitude": l.coordinate.longitude,
                 "accuracy": l.horizontalAccuracy,
                 "altitude": l.altitude,
-                "speed": l.speed >= 0 ? l.speed : -1,
+                "speed": speed,
                 "heading": l.course >= 0 ? l.course : -1
             ],
-            "battery": ["level": level >= 0 ? Double(level) : -1.0, "is_charging": state == .charging || state == .full]
+            // DeliveryApp/SendGPS expects Transistorsoft-compatible fields.
+            "is_moving": moving,
+            "odometer": 0,
+            "activity": ["type": moving ? "in_vehicle" : "still", "confidence": moving ? 75 : 100],
+            "extras": [:] as [String: Any],
+            "battery": ["is_charging": state == .charging || state == .full, "level": level >= 0 ? Double(level) : -1.0]
         ]
         if sample { o["sample"] = true }
         return o

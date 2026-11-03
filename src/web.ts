@@ -139,6 +139,8 @@ export class bm_geolocationWeb extends WebPlugin implements bm_geolocationPlugin
   }
 
   private toLocation(p: GeolocationPosition): Location {
+    const speed = p.coords.speed ?? -1;
+    const moving = speed >= 0.5;
     return {
       uuid: crypto.randomUUID(),
       timestamp: new Date(p.timestamp).toISOString(),
@@ -147,16 +149,21 @@ export class bm_geolocationWeb extends WebPlugin implements bm_geolocationPlugin
         longitude: p.coords.longitude,
         accuracy: p.coords.accuracy,
         altitude: p.coords.altitude ?? 0,
-        speed: p.coords.speed ?? -1,
+        speed,
         heading: p.coords.heading ?? -1,
       },
-      battery: { level: -1, is_charging: false },
+      is_moving: moving,
+      odometer: 0,
+      activity: { type: moving ? 'in_vehicle' : 'still', confidence: moving ? 75 : 100 },
+      extras: {},
+      battery: { is_charging: false, level: -1 },
     };
   }
 
   private async upload(loc: Location): Promise<void> {
     if (!this.state.url || !this.state.autoSync) return;
-    const body = { ...this.state.params, [this.state.httpRootProperty]: loc };
+    const payload = this.state.batchSync ? [loc] : loc;
+    const body = { ...this.state.params, [this.state.httpRootProperty]: payload };
     let event: HttpEvent;
     try {
       const res = await fetch(this.state.url, {

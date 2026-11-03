@@ -25,14 +25,26 @@ public final class BmLocationUtil {
             o.put("uuid", UUID.randomUUID().toString());
             o.put("timestamp", f.format(new Date(l.getTime())));
 
+            double speed = l.hasSpeed() ? l.getSpeed() : -1;
             JSONObject c = new JSONObject();
             c.put("latitude", l.getLatitude());
             c.put("longitude", l.getLongitude());
             c.put("accuracy", l.hasAccuracy() ? l.getAccuracy() : -1);
             c.put("altitude", l.hasAltitude() ? l.getAltitude() : 0);
-            c.put("speed", l.hasSpeed() ? l.getSpeed() : -1);
+            c.put("speed", speed);
             c.put("heading", l.hasBearing() ? l.getBearing() : -1);
             o.put("coords", c);
+
+            // DeliveryApp/SendGPS ожидает формат Transistorsoft: массив location[]
+            // с is_moving + activity (без них отвечает Code 999).
+            boolean moving = speed >= 0.5;
+            o.put("is_moving", moving);
+            o.put("odometer", 0);
+            JSONObject activity = new JSONObject();
+            activity.put("type", moving ? "in_vehicle" : "still");
+            activity.put("confidence", moving ? 75 : 100);
+            o.put("activity", activity);
+            o.put("extras", new JSONObject());
 
             double level = -1;
             boolean charging = false;
@@ -45,8 +57,9 @@ public final class BmLocationUtil {
                 charging = st == BatteryManager.BATTERY_STATUS_CHARGING || st == BatteryManager.BATTERY_STATUS_FULL;
             }
             JSONObject b = new JSONObject();
-            b.put("level", level);
+            // Порядок как у Transistorsoft
             b.put("is_charging", charging);
+            b.put("level", level);
             o.put("battery", b);
             if (sample) o.put("sample", true);
         } catch (JSONException ignored) {}
