@@ -93,7 +93,12 @@ export interface Location {
   /** ISO-8601 timestamp of the fix. */
   timestamp: string;
   coords: Coords;
-  battery: { level: number; is_charging: boolean };
+  battery: { is_charging: boolean; level: number };
+  /** Compatible with Transistorsoft / DeliveryApp SendGPS. */
+  is_moving?: boolean;
+  odometer?: number;
+  activity?: { type: string; confidence: number };
+  extras?: Record<string, unknown>;
   /** True for locations produced by getCurrentPosition(). */
   sample?: boolean;
   /** True for points recorded by the heartbeat or by a push wake-up. */
