@@ -36,11 +36,20 @@ export interface Config {
    */
   heartbeatInterval?: number;
 
-  /** Server endpoint that receives the locations. If empty, locations are only stored locally. */
+  /**
+   * Server endpoint that receives the locations. If empty, locations are only stored locally.
+   * The host must be in the native allow-list (Android manifest meta-data `com.hulafo.bm_geolocation.ALLOWED_HOSTS`,
+   * iOS Info.plist `BMGeolocationAllowedHosts`) if one is configured; otherwise the call is rejected with HOST_NOT_ALLOWED.
+   */
   url?: string;
+  /** Allow plain http:// endpoints. Development only: by default only https:// is accepted. @default false */
+  allowCleartext?: boolean;
   /** HTTP method. @default "POST" */
   method?: 'POST' | 'PUT';
-  /** Extra HTTP headers (e.g. Authorization). */
+  /**
+   * Extra HTTP headers (e.g. Authorization). Stored encrypted (Android Keystore / iOS Keychain). Values are never
+   * returned to JS: getState() shows "***" instead, and sending "***" back keeps the stored value.
+   */
   headers?: Record<string, string>;
   /** Extra properties merged into the root of every request body (e.g. courier_id, order_id). */
   params?: Record<string, unknown>;

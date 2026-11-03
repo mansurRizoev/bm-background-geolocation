@@ -32,6 +32,26 @@ public final class BmSync {
             Result result = new Result();
             BmConfig cfg = BmConfig.load(ctx);
             if (cfg.url == null || cfg.url.isEmpty()) return result;
+            if (!cfg.allowCleartext && !cfg.url.toLowerCase(java.util.Locale.ROOT).startsWith("https://")) {
+                JSONObject ev = new JSONObject();
+                try {
+                    ev.put("success", false).put("status", 0).put("count", 0);
+                    ev.put("responseText", "Cleartext HTTP is not allowed. Use https:// or set allowCleartext for development.");
+                } catch (Exception ignored) {}
+                BmEvents.http(ev);
+                result.success = false;
+                return result;
+            }
+            if (!BmHosts.isAllowed(ctx, cfg.url)) {
+                JSONObject ev = new JSONObject();
+                try {
+                    ev.put("success", false).put("status", 0).put("count", 0);
+                    ev.put("responseText", "Host is not in the native allow-list (ALLOWED_HOSTS).");
+                } catch (Exception ignored) {}
+                BmEvents.http(ev);
+                result.success = false;
+                return result;
+            }
             BmDatabase db = BmDatabase.get(ctx);
 
             while (true) {
@@ -52,6 +72,8 @@ public final class BmSync {
                     }
                     HttpURLConnection c = (HttpURLConnection) new URL(cfg.url).openConnection();
                     try {
+                        // Never follow redirects: they could forward the Authorization header / location data to another host.
+                        c.setInstanceFollowRedirects(false);
                         c.setConnectTimeout(cfg.httpTimeout);
                         c.setReadTimeout(cfg.httpTimeout);
                         c.setRequestMethod("PUT".equalsIgnoreCase(cfg.method) ? "PUT" : "POST");

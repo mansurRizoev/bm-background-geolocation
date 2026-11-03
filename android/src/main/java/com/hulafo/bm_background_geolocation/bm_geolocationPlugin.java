@@ -79,6 +79,11 @@ public class bm_geolocationPlugin extends Plugin implements BmEvents.Listener {
     }
 
     private void applyConfig(PluginCall call) {
+        String newUrl = call.getString("url");
+        if (newUrl != null && !BmHosts.isAllowed(getContext(), newUrl)) {
+            call.reject("The url host is not in the native allow-list (ALLOWED_HOSTS).", "HOST_NOT_ALLOWED");
+            return;
+        }
         BmConfig cfg = BmConfig.load(getContext());
         cfg.apply(call.getData());
         cfg.save(getContext());

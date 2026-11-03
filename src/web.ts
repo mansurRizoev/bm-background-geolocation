@@ -19,6 +19,7 @@ const DEFAULTS: State = {
   startOnBoot: true,
   heartbeatInterval: 0,
   url: '',
+  allowCleartext: false,
   method: 'POST',
   headers: {},
   params: {},

@@ -6,6 +6,16 @@ Capacitor plugin for background geolocation and real-time GPS tracking (courier 
 - iOS: CoreLocation with background mode + significant-change relaunch.
 - Locations are stored in a native SQLite queue and uploaded **natively** (JSON over HTTP), so tracking and sync work even when the WebView is not alive. Rows are removed only after a 2xx response, so nothing is lost offline.
 
+## Features
+
+- Background location tracking
+- GPS location updates
+- Android foreground service support
+
+## License
+
+MIT
+
 ## Install
 
 ```bash
@@ -101,6 +111,9 @@ See `src/definitions.ts` (documented types): `configure`, `setConfig`, `start`, 
 * [`sync()`](#sync)
 * [`checkPermissions()`](#checkpermissions)
 * [`requestPermissions(...)`](#requestpermissions)
+* [`isIgnoringBatteryOptimizations()`](#isignoringbatteryoptimizations)
+* [`requestIgnoreBatteryOptimizations()`](#requestignorebatteryoptimizations)
+* [`openVendorSettings()`](#openvendorsettings)
 * [`addListener('location', ...)`](#addlistenerlocation-)
 * [`addListener('http', ...)`](#addlistenerhttp-)
 * [`addListener('enabledchange', ...)`](#addlistenerenabledchange-)
@@ -281,6 +294,46 @@ has been granted (required for tracking while the app is in background).
 --------------------
 
 
+### isIgnoringBatteryOptimizations()
+
+```typescript
+isIgnoringBatteryOptimizations() => Promise<{ ignoring: boolean; manufacturer: string; }>
+```
+
+Android: whether the app is exempt from battery optimization. Always true on iOS/web.
+
+**Returns:** <code>Promise&lt;{ ignoring: boolean; manufacturer: string; }&gt;</code>
+
+--------------------
+
+
+### requestIgnoreBatteryOptimizations()
+
+```typescript
+requestIgnoreBatteryOptimizations() => Promise<{ shown: boolean; }>
+```
+
+Android: shows the system dialog to exempt the app from battery optimization.
+
+**Returns:** <code>Promise&lt;{ shown: boolean; }&gt;</code>
+
+--------------------
+
+
+### openVendorSettings()
+
+```typescript
+openVendorSettings() => Promise<{ opened: 'vendor' | 'app'; }>
+```
+
+Android: opens the manufacturer's autostart / background screen (Xiaomi, Huawei/Honor, Samsung, Oppo/Realme, Vivo),
+or the app details screen if unavailable. iOS: opens the app settings.
+
+**Returns:** <code>Promise&lt;{ opened: 'vendor' | 'app'; }&gt;</code>
+
+--------------------
+
+
 ### addListener('location', ...)
 
 ```typescript
@@ -343,13 +396,14 @@ removeAllListeners() => Promise<void>
 
 #### State
 
-| Prop               | Type                                                              | Description                            |
-| ------------------ | ----------------------------------------------------------------- | -------------------------------------- |
-| **`url`**          | <code>string</code>                                               |                                        |
-| **`headers`**      | <code><a href="#record">Record</a>&lt;string, string&gt;</code>   |                                        |
-| **`params`**       | <code><a href="#record">Record</a>&lt;string, unknown&gt;</code>  |                                        |
-| **`notification`** | <code><a href="#notificationconfig">NotificationConfig</a></code> |                                        |
-| **`enabled`**      | <code>boolean</code>                                              | Whether tracking is currently enabled. |
+| Prop                 | Type                                                              | Description                                                                                                                                                |
+| -------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`url`**            | <code>string</code>                                               |                                                                                                                                                            |
+| **`headers`**        | <code><a href="#record">Record</a>&lt;string, string&gt;</code>   |                                                                                                                                                            |
+| **`params`**         | <code><a href="#record">Record</a>&lt;string, unknown&gt;</code>  |                                                                                                                                                            |
+| **`notification`**   | <code><a href="#notificationconfig">NotificationConfig</a></code> |                                                                                                                                                            |
+| **`enabled`**        | <code>boolean</code>                                              | Whether tracking is currently enabled.                                                                                                                     |
+| **`lastLocationAt`** | <code>number</code>                                               | Epoch ms of the last recorded location (0 = none). Use it as a watchdog: if tracking is enabled but this is old, the OS probably killed/throttled the app. |
 
 
 #### NotificationConfig
@@ -364,39 +418,42 @@ removeAllListeners() => Promise<void>
 
 #### Config
 
-| Prop                                | Type                                                              | Description                                                                                      |
-| ----------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| **`desiredAccuracy`**               | <code><a href="#desiredaccuracy">DesiredAccuracy</a></code>       | <a href="#location">Location</a> accuracy. @default "high"                                       |
-| **`distanceFilter`**                | <code>number</code>                                               | Minimum distance (meters) the device must move before a new location is recorded. @default 10    |
-| **`locationUpdateInterval`**        | <code>number</code>                                               | Desired interval between location updates, in ms (Android). @default 5000                        |
-| **`fastestLocationUpdateInterval`** | <code>number</code>                                               | Fastest accepted interval between location updates, in ms (Android). @default 2000               |
-| **`maxAccuracy`**                   | <code>number</code>                                               | Drop fixes whose horizontal accuracy (meters) is worse than this value. 0 disables. @default 100 |
-| **`stopOnTerminate`**               | <code>boolean</code>                                              | Stop tracking when the app is swiped away / terminated. @default false                           |
-| **`startOnBoot`**                   | <code>boolean</code>                                              | Resume tracking after device reboot (Android). @default true                                     |
-| **`url`**                           | <code>string</code>                                               | Server endpoint that receives the locations. If empty, locations are only stored locally.        |
-| **`method`**                        | <code>'POST' \| 'PUT'</code>                                      | HTTP method. @default "POST"                                                                     |
-| **`headers`**                       | <code><a href="#record">Record</a>&lt;string, string&gt;</code>   | Extra HTTP headers (e.g. Authorization).                                                         |
-| **`params`**                        | <code><a href="#record">Record</a>&lt;string, unknown&gt;</code>  | Extra properties merged into the root of every request body (e.g. courier_id, order_id).         |
-| **`httpRootProperty`**              | <code>string</code>                                               | Name of the root property holding the location(s). @default "location"                           |
-| **`autoSync`**                      | <code>boolean</code>                                              | Upload locations automatically as they are recorded. @default true                               |
-| **`batchSync`**                     | <code>boolean</code>                                              | Send several locations in one request (array under httpRootProperty). @default false             |
-| **`maxBatchSize`**                  | <code>number</code>                                               | Maximum number of locations per batch request. @default 100                                      |
-| **`autoSyncThreshold`**             | <code>number</code>                                               | Wait until this many locations are stored before auto-syncing. @default 0                        |
-| **`httpTimeout`**                   | <code>number</code>                                               | HTTP timeout in ms. @default 15000                                                               |
-| **`maxRecordsToPersist`**           | <code>number</code>                                               | Maximum number of locations kept in the local database. @default 10000                           |
-| **`maxDaysToPersist`**              | <code>number</code>                                               | Maximum age in days of locations kept in the local database. @default 3                          |
-| **`notification`**                  | <code><a href="#notificationconfig">NotificationConfig</a></code> | Foreground service notification (Android).                                                       |
+| Prop                                | Type                                                              | Description                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`desiredAccuracy`**               | <code><a href="#desiredaccuracy">DesiredAccuracy</a></code>       | <a href="#location">Location</a> accuracy. @default "high"                                                                                                                                                                                                                                                                         |
+| **`distanceFilter`**                | <code>number</code>                                               | Minimum distance (meters) the device must move before a new location is recorded. @default 10                                                                                                                                                                                                                                      |
+| **`locationUpdateInterval`**        | <code>number</code>                                               | Desired interval between location updates, in ms (Android). @default 5000                                                                                                                                                                                                                                                          |
+| **`fastestLocationUpdateInterval`** | <code>number</code>                                               | Fastest accepted interval between location updates, in ms (Android). @default 2000                                                                                                                                                                                                                                                 |
+| **`maxAccuracy`**                   | <code>number</code>                                               | Drop fixes whose horizontal accuracy (meters) is worse than this value. 0 disables. @default 100                                                                                                                                                                                                                                   |
+| **`stopOnTerminate`**               | <code>boolean</code>                                              | Stop tracking when the app is swiped away / terminated. @default false                                                                                                                                                                                                                                                             |
+| **`startOnBoot`**                   | <code>boolean</code>                                              | Resume tracking after device reboot (Android). @default true                                                                                                                                                                                                                                                                       |
+| **`heartbeatInterval`**             | <code>number</code>                                               | Seconds. If &gt; 0 and no location was recorded for this long (e.g. the courier stands still and distanceFilter produces no updates), a point flagged `heartbeat: true` is recorded and uploaded. 0 disables. @default 0                                                                                                           |
+| **`url`**                           | <code>string</code>                                               | Server endpoint that receives the locations. If empty, locations are only stored locally. The host must be in the native allow-list (Android manifest meta-data `com.hulafo.bm_geolocation.ALLOWED_HOSTS`, iOS Info.plist `BMGeolocationAllowedHosts`) if one is configured; otherwise the call is rejected with HOST_NOT_ALLOWED. |
+| **`allowCleartext`**                | <code>boolean</code>                                              | Allow plain http:// endpoints. Development only: by default only https:// is accepted. @default false                                                                                                                                                                                                                              |
+| **`method`**                        | <code>'POST' \| 'PUT'</code>                                      | HTTP method. @default "POST"                                                                                                                                                                                                                                                                                                       |
+| **`headers`**                       | <code><a href="#record">Record</a>&lt;string, string&gt;</code>   | Extra HTTP headers (e.g. Authorization). Stored encrypted (Android Keystore / iOS Keychain). Values are never returned to JS: getState() shows "***" instead, and sending "***" back keeps the stored value.                                                                                                                       |
+| **`params`**                        | <code><a href="#record">Record</a>&lt;string, unknown&gt;</code>  | Extra properties merged into the root of every request body (e.g. courier_id, order_id).                                                                                                                                                                                                                                           |
+| **`httpRootProperty`**              | <code>string</code>                                               | Name of the root property holding the location(s). @default "location"                                                                                                                                                                                                                                                             |
+| **`autoSync`**                      | <code>boolean</code>                                              | Upload locations automatically as they are recorded. @default true                                                                                                                                                                                                                                                                 |
+| **`batchSync`**                     | <code>boolean</code>                                              | Send several locations in one request (array under httpRootProperty). @default false                                                                                                                                                                                                                                               |
+| **`maxBatchSize`**                  | <code>number</code>                                               | Maximum number of locations per batch request. @default 100                                                                                                                                                                                                                                                                        |
+| **`autoSyncThreshold`**             | <code>number</code>                                               | Wait until this many locations are stored before auto-syncing. @default 0                                                                                                                                                                                                                                                          |
+| **`httpTimeout`**                   | <code>number</code>                                               | HTTP timeout in ms. @default 15000                                                                                                                                                                                                                                                                                                 |
+| **`maxRecordsToPersist`**           | <code>number</code>                                               | Maximum number of locations kept in the local database. @default 10000                                                                                                                                                                                                                                                             |
+| **`maxDaysToPersist`**              | <code>number</code>                                               | Maximum age in days of locations kept in the local database. @default 3                                                                                                                                                                                                                                                            |
+| **`notification`**                  | <code><a href="#notificationconfig">NotificationConfig</a></code> | Foreground service notification (Android).                                                                                                                                                                                                                                                                                         |
 
 
 #### Location
 
-| Prop            | Type                                                  | Description                                          |
-| --------------- | ----------------------------------------------------- | ---------------------------------------------------- |
-| **`uuid`**      | <code>string</code>                                   |                                                      |
-| **`timestamp`** | <code>string</code>                                   | ISO-8601 timestamp of the fix.                       |
-| **`coords`**    | <code><a href="#coords">Coords</a></code>             |                                                      |
-| **`battery`**   | <code>{ level: number; is_charging: boolean; }</code> |                                                      |
-| **`sample`**    | <code>boolean</code>                                  | True for locations produced by getCurrentPosition(). |
+| Prop            | Type                                                  | Description                                                     |
+| --------------- | ----------------------------------------------------- | --------------------------------------------------------------- |
+| **`uuid`**      | <code>string</code>                                   |                                                                 |
+| **`timestamp`** | <code>string</code>                                   | ISO-8601 timestamp of the fix.                                  |
+| **`coords`**    | <code><a href="#coords">Coords</a></code>             |                                                                 |
+| **`battery`**   | <code>{ level: number; is_charging: boolean; }</code> |                                                                 |
+| **`sample`**    | <code>boolean</code>                                  | True for locations produced by getCurrentPosition().            |
+| **`heartbeat`** | <code>boolean</code>                                  | True for points recorded by the heartbeat or by a push wake-up. |
 
 
 #### Coords
@@ -444,9 +501,7 @@ removeAllListeners() => Promise<void>
 
 Construct a type with a set of properties K of type T
 
-<code>{
- [P in K]: T;
- }</code>
+<code>{ [P in K]: T; }</code>
 
 
 #### DesiredAccuracy

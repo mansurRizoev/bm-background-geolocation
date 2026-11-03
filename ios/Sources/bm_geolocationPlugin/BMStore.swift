@@ -16,6 +16,7 @@ enum BMConfig {
         "startOnBoot": true,
         "heartbeatInterval": 0,
         "url": "",
+        "allowCleartext": false,
         "method": "POST",
         "headers": [String: Any](),
         "params": [String: Any](),
@@ -30,18 +31,50 @@ enum BMConfig {
         "notification": [String: Any]()
     ]
 
+    static let mask = "***"
+    private static let headersAccount = "headers"
+    private static var cachedHeaders: [String: Any]?
+    private static let lock = NSLock()
+
+    /// Full configuration including real header values (internal use only).
     static func load() -> [String: Any] {
         var cfg = defaults
         if let saved = UserDefaults.standard.dictionary(forKey: configKey) {
-            for (k, v) in saved { cfg[k] = v }
+            for (k, v) in saved where k != "headers" { cfg[k] = v }
         }
+        cfg["headers"] = headers()
         return cfg
+    }
+
+    private static func headers() -> [String: Any] {
+        lock.lock(); defer { lock.unlock() }
+        if let c = cachedHeaders { return c }
+        var h: [String: Any] = [:]
+        if let s = BMKeychain.get(account: headersAccount),
+           let o = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any] { h = o }
+        cachedHeaders = h
+        return h
+    }
+
+    private static func storeHeaders(_ patch: [String: Any]) {
+        let old = headers()
+        var merged: [String: Any] = [:]
+        for (k, v) in patch {
+            if let s = v as? String, s == mask { if let o = old[k] { merged[k] = o } } else { merged[k] = "\(v)" }
+        }
+        lock.lock(); cachedHeaders = merged; lock.unlock()
+        if merged.isEmpty { BMKeychain.set(nil, account: headersAccount); return }
+        if let d = try? JSONSerialization.data(withJSONObject: merged), let s = String(data: d, encoding: .utf8) {
+            BMKeychain.set(s, account: headersAccount)
+        }
     }
 
     @discardableResult
     static func apply(_ patch: [String: Any]) -> [String: Any] {
         var saved = UserDefaults.standard.dictionary(forKey: configKey) ?? [:]
-        for (k, v) in patch where defaults[k] != nil { saved[k] = v }
+        if let h = patch["headers"] as? [String: Any] { storeHeaders(h) }
+        saved.removeValue(forKey: "headers") // never keep secrets in UserDefaults
+        for (k, v) in patch where defaults[k] != nil && k != "headers" { saved[k] = v }
         UserDefaults.standard.set(saved, forKey: configKey)
         return load()
     }
@@ -53,6 +86,9 @@ enum BMConfig {
 
     static func state() -> [String: Any] {
         var s = load()
+        var masked: [String: Any] = [:]
+        for k in (s["headers"] as? [String: Any] ?? [:]).keys { masked[k] = mask }
+        s["headers"] = masked
         s["enabled"] = enabled
         s["lastLocationAt"] = UserDefaults.standard.double(forKey: "bm_geolocation.lastLocationAt")
         return s

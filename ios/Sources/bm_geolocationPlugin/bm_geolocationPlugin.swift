@@ -39,7 +39,12 @@ public class bm_geolocationPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func setConfig(_ call: CAPPluginCall) { applyConfig(call) }
 
     private func applyConfig(_ call: CAPPluginCall) {
-        BMConfig.apply(call.options as? [String: Any] ?? [:])
+        let patch = call.options as? [String: Any] ?? [:]
+        if let u = patch["url"] as? String, !BMHosts.isAllowed(u) {
+            call.reject("The url host is not in the native allow-list (BMGeolocationAllowedHosts).", "HOST_NOT_ALLOWED")
+            return
+        }
+        BMConfig.apply(patch)
         implementation.applyConfigIfRunning()
         call.resolve(BMConfig.state())
     }

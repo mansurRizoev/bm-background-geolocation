@@ -11,6 +11,11 @@ public class BmConfig {
     private static final String PREFS = "bm_geolocation";
     private static final String KEY_CONFIG = "config";
     private static final String KEY_ENABLED = "enabled";
+    private static final String KEY_HEADERS = "headers_enc";
+    /** Header values are never returned to JS; this placeholder is returned instead (and ignored when sent back). */
+    public static final String MASK = "***";
+    private static String cachedEnc;
+    private static String cachedPlain;
 
     public String desiredAccuracy = "high";
     public float distanceFilter = 10;
@@ -23,6 +28,8 @@ public class BmConfig {
     public int heartbeatInterval = 0;
 
     public String url = "";
+    /** Allow plain http:// endpoints (development only). */
+    public boolean allowCleartext = false;
     public String method = "POST";
     public JSONObject headers = new JSONObject();
     public JSONObject params = new JSONObject();
@@ -53,11 +60,33 @@ public class BmConfig {
             } catch (JSONException ignored) {}
         }
         c.enabled = sp.getBoolean(KEY_ENABLED, false);
+        String enc = sp.getString(KEY_HEADERS, null);
+        if (enc != null) {
+            String plain;
+            synchronized (BmConfig.class) {
+                if (!enc.equals(cachedEnc)) {
+                    cachedPlain = BmSecureStore.decrypt(enc);
+                    cachedEnc = enc;
+                }
+                plain = cachedPlain;
+            }
+            if (plain != null) {
+                try {
+                    c.headers = new JSONObject(plain);
+                } catch (JSONException ignored) {}
+            }
+        }
         return c;
     }
 
     public void save(Context ctx) {
-        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_CONFIG, toJson(false).toString()).apply();
+        JSONObject json = toJson(false);
+        json.remove("headers"); // secrets are stored separately, encrypted
+        SharedPreferences.Editor ed = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_CONFIG, json.toString());
+        String enc = headers.length() == 0 ? null : BmSecureStore.encrypt(headers.toString());
+        if (enc != null) ed.putString(KEY_HEADERS, enc);
+        else ed.remove(KEY_HEADERS); // if encryption fails, headers are dropped rather than stored in plaintext
+        ed.apply();
     }
 
     public static void setLastLocationAt(Context ctx, long ts) {
@@ -84,8 +113,24 @@ public class BmConfig {
         startOnBoot = o.optBoolean("startOnBoot", startOnBoot);
         heartbeatInterval = Math.max(0, o.optInt("heartbeatInterval", heartbeatInterval));
         url = o.optString("url", url);
+        allowCleartext = o.optBoolean("allowCleartext", allowCleartext);
         method = o.optString("method", method);
-        if (o.optJSONObject("headers") != null) headers = o.optJSONObject("headers");
+        JSONObject h = o.optJSONObject("headers");
+        if (h != null) {
+            JSONObject merged = new JSONObject();
+            java.util.Iterator<String> it = h.keys();
+            while (it.hasNext()) {
+                String k = it.next();
+                String v = h.optString(k);
+                if (MASK.equals(v)) v = headers.optString(k, null); // echoed placeholder: keep the stored secret
+                if (v != null) {
+                    try {
+                        merged.put(k, v);
+                    } catch (JSONException ignored) {}
+                }
+            }
+            headers = merged;
+        }
         if (o.optJSONObject("params") != null) params = o.optJSONObject("params");
         httpRootProperty = o.optString("httpRootProperty", httpRootProperty);
         autoSync = o.optBoolean("autoSync", autoSync);
@@ -116,8 +161,12 @@ public class BmConfig {
             o.put("startOnBoot", startOnBoot);
             o.put("heartbeatInterval", heartbeatInterval);
             o.put("url", url);
+            o.put("allowCleartext", allowCleartext);
             o.put("method", method);
-            o.put("headers", headers);
+            JSONObject masked = new JSONObject();
+            java.util.Iterator<String> hk = headers.keys();
+            while (hk.hasNext()) masked.put(hk.next(), MASK);
+            o.put("headers", masked);
             o.put("params", params);
             o.put("httpRootProperty", httpRootProperty);
             o.put("autoSync", autoSync);

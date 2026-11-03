@@ -13,6 +13,8 @@ import UIKit
     private let manager = CLLocationManager()
     private let sampleManager = CLLocationManager()
     private let syncQueue = DispatchQueue(label: "bm_geolocation.sync")
+    /// Ephemeral session that refuses redirects (would leak the Authorization header / data to another host).
+    private lazy var session = URLSession(configuration: .ephemeral, delegate: NoRedirectDelegate(), delegateQueue: nil)
     private var sampleCompletion: ((Result<CLLocation, Error>) -> Void)?
     private var authCompletion: (() -> Void)?
     private var wantsBackgroundAuth = false
@@ -73,7 +75,7 @@ import UIKit
             self.manager.activityType = .automotiveNavigation
             self.manager.pausesLocationUpdatesAutomatically = false
             // Requires "location" in UIBackgroundModes, otherwise this raises an exception.
-            if Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") is [String] {
+            if let modes = Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String], modes.contains("location") {
                 self.manager.allowsBackgroundLocationUpdates = true
                 self.manager.showsBackgroundLocationIndicator = true
             }
@@ -275,6 +277,18 @@ import UIKit
                 completion?(0, true)
                 return
             }
+            if !BMHosts.isAllowed(urlString) {
+                self.onHttp?(["success": false, "status": 0, "count": 0,
+                              "responseText": "Host is not in the native allow-list (BMGeolocationAllowedHosts)."])
+                completion?(0, false)
+                return
+            }
+            if url.scheme?.lowercased() != "https" && !cfg.bool("allowCleartext") {
+                self.onHttp?(["success": false, "status": 0, "count": 0,
+                              "responseText": "Cleartext HTTP is not allowed. Use https:// or set allowCleartext for development."])
+                completion?(0, false)
+                return
+            }
             let batch = cfg.bool("batchSync")
             let root = cfg.string("httpRootProperty", "location")
             var sent = 0
@@ -295,7 +309,7 @@ import UIKit
                 var status = 0
                 var text = ""
                 let sem = DispatchSemaphore(value: 0)
-                URLSession.shared.dataTask(with: req) { data, response, error in
+                self.session.dataTask(with: req) { data, response, error in
                     status = (response as? HTTPURLResponse)?.statusCode ?? 0
                     if let d = data { text = String(data: d.prefix(65536), encoding: .utf8) ?? "" }
                     else if let e = error { text = e.localizedDescription }
@@ -322,4 +336,11 @@ import UIKit
     func locations(limit: Int) -> [[String: Any]] { BMStore.shared.oldest(limit).map { $0.location } }
     func count() -> Int { BMStore.shared.count() }
     func destroyLocations() { BMStore.shared.clear() }
+}
+
+private final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
+    }
 }
