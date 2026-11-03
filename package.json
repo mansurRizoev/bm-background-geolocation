@@ -1,6 +1,6 @@
 {
   "name": "bm-background-geolocation",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A Capacitor plugin for background geolocation and real-time GPS tracking on Android and iOS.",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
